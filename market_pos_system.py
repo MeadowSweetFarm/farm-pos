@@ -630,10 +630,6 @@ elif st.session_state.role == "vendor":
 # ==================== CUSTOMER CHECKOUT ====================
 elif st.session_state.role == "customer":
     st.header("Farm Fresh Montana — Checkout")
-    try:
-        st.image("farm_fresh_montana_logo.jpg", width=450)
-    except:
-        pass
     st.markdown("Scan or type product barcodes to add items to your order.")
     
     if "cart" not in st.session_state:
