@@ -598,6 +598,35 @@ elif st.session_state.role == "vendor":
                 if img:
                     st.image(img, caption=f"{row.name} — {row.barcode}", width=300)
 
+    elif page == "My Sales Report":
+        st.header(f"{vname} — Sales")
+        d1 = st.date_input("From", date.today()-timedelta(days=30))
+        d2 = st.date_input("To", date.today())
+        sales = pd.read_sql("""
+            SELECT date(s.sale_date) as Date, p.name as Product, si.quantity as Qty,
+                   si.unit_price as Price, si.line_total as Total
+            FROM sale_items si JOIN sales s ON si.sale_id=s.id JOIN products p ON si.product_id=p.id
+            WHERE si.vendor_id=? AND date(s.sale_date) BETWEEN ? AND ?
+            ORDER BY s.sale_date DESC
+        """, get_conn(), params=(vid, d1.isoformat(), d2.isoformat()))
+        if not sales.empty:
+            st.dataframe(sales, use_container_width=True)
+            total = sales["Total"].sum()
+            fee_pct = pd.read_sql("SELECT fee_percent FROM vendors WHERE id=?", get_conn(), params=(vid,)).iloc[0,0]
+            fee = total * (fee_pct/100)
+            net = total - fee
+            c1,c2,c3 = st.columns(3)
+            c1.metric("Gross", f"${total:.2f}")
+            c2.metric(f"Fee ({fee_pct}%)", f"${fee:.2f}")
+            c3.metric("Net", f"${net:.2f}")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button("Excel", to_excel(sales), f"{vname}_sales.xlsx")
+            with col2:
+                st.download_button("CSV", sales.to_csv(index=False), f"{vname}_sales.csv")
+        else:
+            st.info("No sales in period.")
+
 # ==================== CUSTOMER CHECKOUT ====================
 elif st.session_state.role == "customer":
     st.header("Farm Fresh Montana — Checkout")
@@ -664,35 +693,6 @@ elif st.session_state.role == "customer":
                 st.rerun()
     else:
         st.info("Your cart is empty. Scan a product to begin.")
-
-    elif page == "My Sales Report":
-        st.header(f"{vname} — Sales")
-        d1 = st.date_input("From", date.today()-timedelta(days=30))
-        d2 = st.date_input("To", date.today())
-        sales = pd.read_sql("""
-            SELECT date(s.sale_date) as Date, p.name as Product, si.quantity as Qty,
-                   si.unit_price as Price, si.line_total as Total
-            FROM sale_items si JOIN sales s ON si.sale_id=s.id JOIN products p ON si.product_id=p.id
-            WHERE si.vendor_id=? AND date(s.sale_date) BETWEEN ? AND ?
-            ORDER BY s.sale_date DESC
-        """, get_conn(), params=(vid, d1.isoformat(), d2.isoformat()))
-        if not sales.empty:
-            st.dataframe(sales, use_container_width=True)
-            total = sales["Total"].sum()
-            fee_pct = pd.read_sql("SELECT fee_percent FROM vendors WHERE id=?", get_conn(), params=(vid,)).iloc[0,0]
-            fee = total * (fee_pct/100)
-            net = total - fee
-            c1,c2,c3 = st.columns(3)
-            c1.metric("Gross", f"${total:.2f}")
-            c2.metric(f"Fee ({fee_pct}%)", f"${fee:.2f}")
-            c3.metric("Net", f"${net:.2f}")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button("Excel", to_excel(sales), f"{vname}_sales.xlsx")
-            with col2:
-                st.download_button("CSV", sales.to_csv(index=False), f"{vname}_sales.csv")
-        else:
-            st.info("No sales in period.")
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Barcode labels, PDF reports, Excel exports, and Stripe Connect structure included.")
