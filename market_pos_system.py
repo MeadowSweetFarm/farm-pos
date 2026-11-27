@@ -159,78 +159,65 @@ init_db()
 
 st.set_page_config(page_title="Farm Fresh Montana", layout="wide", initial_sidebar_state="expanded")
 
-# Custom branding CSS — applied across the entire app
+# Custom branding CSS — refined to better match the professional landing design
 st.markdown("""
 <style>
     .stApp {
-        background-color: #F8F5F0;
+        background-color: #F9F6F1;
     }
     h1, h2, h3, h4 {
         color: #1B4D3E !important;
-        font-weight: 600;
+        font-weight: 650;
     }
     .stButton > button {
         background-color: #1B4D3E;
         color: white;
-        border-radius: 8px;
+        border-radius: 10px;
         border: none;
         font-weight: 600;
-        padding: 0.5rem 1rem;
+        padding: 0.55rem 1.1rem;
+        transition: all 0.2s;
     }
     .stButton > button:hover {
-        background-color: #2E6B54;
-        color: white;
-    }
-    .stButton > button[kind="secondary"] {
-        background-color: #C4A35A;
-        color: #1B4D3E;
+        background-color: #245C4A;
+        transform: translateY(-1px);
     }
     [data-testid="stSidebar"] {
         background-color: #1B4D3E;
     }
     [data-testid="stSidebar"] * {
-        color: #F8F5F0 !important;
-    }
-    [data-testid="stSidebar"] .stButton > button {
-        background-color: #C4A35A;
-        color: #1B4D3E;
+        color: #F9F6F1 !important;
     }
     .stMetric {
         background-color: white;
-        padding: 15px;
-        border-radius: 10px;
+        padding: 16px;
+        border-radius: 12px;
         border: 1px solid #E8E0D5;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .stDataFrame, .stTable {
-        border-radius: 8px;
-        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     }
     div[data-testid="stExpander"] {
         background-color: white;
         border: 1px solid #E8E0D5;
-        border-radius: 8px;
+        border-radius: 10px;
     }
-    .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div {
-        border-radius: 6px;
-        border: 1px solid #D4C9B8;
-    }
-    hr {
-        border-color: #E8E0D5;
+    .hero-box {
+        background: linear-gradient(135deg, #F9F6F1 0%, #F3EEE6 100%);
+        padding: 20px 0 10px 0;
+        border-radius: 12px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Consistent header across all pages
 try:
-    col_logo, col_title = st.columns([1, 3])
+    col_logo, col_title = st.columns([1, 4])
     with col_logo:
-        st.image("farm_fresh_montana_logo.jpg", width=220)
+        st.image("logo_circular.jpg", width=120)
     with col_title:
-        st.markdown("<h2 style='color:#1B4D3E; margin:0; padding-top:10px;'>Farm Fresh Montana</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#5C4A3A; margin:0;'>Local Farms. Real Food. Strong Communities.</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#1B4D3E; margin:0; padding-top:8px;'>Farm Fresh Montana</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#5C4A3A; margin:0; font-size:0.95rem;'>Local Farms. Real Food. Strong Communities.</p>", unsafe_allow_html=True)
         if st.session_state.get("location_name"):
-            st.markdown(f"<h4 style='color:#C4A35A; margin-top:8px;'>{st.session_state.location_name}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='color:#C4A35A; margin-top:6px;'>{st.session_state.location_name}</h4>", unsafe_allow_html=True)
 except:
     st.title("Farm Fresh Montana")
 
@@ -278,7 +265,7 @@ if st.session_state.role is None:
         """, unsafe_allow_html=True)
     with col_img:
         try:
-            st.image("farm_fresh_montana_logo.jpg", use_container_width=True)
+            st.image("hero_illustration.jpg", use_container_width=True)
         except:
             pass
     
