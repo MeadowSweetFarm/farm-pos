@@ -36,6 +36,7 @@ def init_db():
         admin_phone TEXT,
         admin_email TEXT,
         admin_pin TEXT DEFAULT '1234',
+        website TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS vendors (
@@ -150,6 +151,7 @@ try:
     conn = get_conn()
     conn.execute("ALTER TABLE sales ADD COLUMN location_id INTEGER")
     conn.execute("ALTER TABLE inventory_log ADD COLUMN location_id INTEGER")
+    conn.execute("ALTER TABLE locations ADD COLUMN website TEXT")
     conn.commit()
     conn.close()
 except:
@@ -223,6 +225,27 @@ except:
 
 st.markdown("---")
 
+# Check for location detail view via query param
+query_params = st.query_params
+if "location_id" in query_params and st.session_state.role is None:
+    try:
+        loc_id = int(query_params["location_id"])
+        loc = pd.read_sql("SELECT * FROM locations WHERE id=?", get_conn(), params=(loc_id,))
+        if not loc.empty:
+            l = loc.iloc[0]
+            st.header(l["name"])
+            if l.get("website"):
+                st.markdown(f"**Website:** [{l['website']}]({l['website']})")
+            st.markdown(f"**Address:** {l.get('address') or 'Not listed'}")
+            st.markdown(f"**Phone:** {l.get('phone') or 'Not listed'}")
+            st.markdown(f"**Email:** {l.get('email') or 'Not listed'}")
+            if st.button("← Back to Home"):
+                st.query_params.clear()
+                st.rerun()
+            st.stop()
+    except:
+        pass
+
 # Role handling
 if "role" not in st.session_state:
     st.session_state.role = None
@@ -272,36 +295,30 @@ if st.session_state.role is None:
     st.markdown("---")
     st.markdown('<div class="section-title">Find a Market Location</div>', unsafe_allow_html=True)
     
-    col_z, col_s = st.columns([4, 1])
-    with col_z:
-        st.text_input("Enter ZIP Code", placeholder="Enter ZIP Code", label_visibility="collapsed")
-    with col_s:
-        st.button("Search", use_container_width=True)
+    search_term = st.text_input("Search by ZIP code or city", placeholder="Enter ZIP code or city name", label_visibility="collapsed")
+    
+    # Load locations
+    locations_df = pd.read_sql("SELECT id, name, address, phone, email, website FROM locations", get_conn())
+    
+    if search_term:
+        search_lower = search_term.lower()
+        filtered = locations_df[
+            locations_df["name"].str.lower().str.contains(search_lower, na=False) |
+            locations_df["address"].str.lower().str.contains(search_lower, na=False)
+        ]
+    else:
+        filtered = locations_df
     
     st.markdown("### Nearby Market Locations")
-    loc_col1, loc_col2 = st.columns(2)
-    with loc_col1:
-        st.markdown("""
-        **📍 Plowgirl Farm**  
-        Bigfork, MT · *12 miles away*
-        
-        **📍 Fresh Earth Farm**  
-        Somers, MT · *18 miles away*
-        """)
-    with loc_col2:
-        st.markdown("""
-        **📍 Whitefish Farm Stand**  
-        Whitefish, MT · *24 miles away*
-        
-        [View More Locations →](#)
-        """)
-    
-    st.markdown("### Or Browse by Area")
-    b1, b2, b3, b4 = st.columns(4)
-    with b1: st.button("Plowgirl Farm", use_container_width=True)
-    with b2: st.button("Bigfork Area", use_container_width=True)
-    with b3: st.button("Somers Area", use_container_width=True)
-    with b4: st.button("Whitefish Area", use_container_width=True)
+    if filtered.empty:
+        st.info("No market locations found. Try a different ZIP code or city, or check back later.")
+    else:
+        for _, loc in filtered.iterrows():
+            website_link = f" · [Website]({loc['website']})" if loc.get("website") else ""
+            st.markdown(f"""
+            **📍 [{loc['name']}](?location_id={loc['id']})**{website_link}  
+            {loc['address'] or 'Address not listed'} · {loc['phone'] or ''}
+            """)
     
     st.markdown("---")
     st.markdown('<div class="section-title">Quick Access</div>', unsafe_allow_html=True)
@@ -509,6 +526,7 @@ if st.session_state.role == "system_manager":
             address = st.text_area("Address")
             phone = st.text_input("Phone")
             email = st.text_input("Email")
+            website = st.text_input("Website (e.g. https://example.com)")
             st.markdown("**Location Administrator**")
             admin_name = st.text_input("Admin Name")
             admin_address = st.text_area("Admin Address")
@@ -519,9 +537,9 @@ if st.session_state.role == "system_manager":
                 try:
                     conn = get_conn()
                     conn.execute("""INSERT INTO locations 
-                        (name, address, phone, email, admin_name, admin_address, admin_phone, admin_email, admin_pin)
-                        VALUES (?,?,?,?,?,?,?,?,?)""",
-                                 (name, address, phone, email, admin_name, admin_address, admin_phone, admin_email, admin_pin))
+                        (name, address, phone, email, website, admin_name, admin_address, admin_phone, admin_email, admin_pin)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                                 (name, address, phone, email, website or None, admin_name, admin_address, admin_phone, admin_email, admin_pin))
                     conn.commit()
                     conn.close()
                     st.success(f"Location '{name}' created.")
@@ -907,97 +925,73 @@ elif st.session_state.role == "vendor":
     elif page == "Add / Edit Products":
         st.header(f"{vname} — Products")
         
-        if "editing_product" not in st.session_state:
-            st.session_state.editing_product = None
+        # Always show add form
+        st.subheader("Add New Product")
+        with st.form("add_product_form", clear_on_submit=True):
+            name = st.text_input("Product Name*")
+            price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25)
+            qty = st.number_input("Initial Quantity", min_value=0, value=10)
+            category = st.text_input("Category (optional)")
+            custom_bc = st.text_input("Custom Barcode (leave blank for auto)")
+            submitted = st.form_submit_button("Add Product")
+            if submitted and name:
+                bc = custom_bc.strip() or generate_barcode()
+                try:
+                    conn = get_conn()
+                    c = conn.cursor()
+                    c.execute("INSERT INTO products (vendor_id, name, price, barcode, inventory, category) VALUES (?,?,?,?,?,?)",
+                              (vid, name, price, bc, qty, category or None))
+                    pid = c.lastrowid
+                    conn.commit()
+                    conn.close()
+                    if qty:
+                        log_inventory_change(pid, qty, "Initial delivery")
+                    st.success(f"Added **{name}** — Barcode: {bc}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Could not add product: {e}")
         
-        # Add new product form
-        with st.expander("➕ Add New Product", expanded=False):
-            with st.form("new"):
-                name = st.text_input("Product Name*")
-                price = st.number_input("Price", 0.01, value=5.0, step=0.25)
-                qty = st.number_input("Initial Qty", 0, value=10)
-                category = st.text_input("Category")
-                custom_bc = st.text_input("Custom Barcode (blank = auto)")
-                if st.form_submit_button("Add Product") and name:
-                    bc = custom_bc.strip() or generate_barcode()
-                    try:
-                        conn = get_conn()
-                        c = conn.cursor()
-                        c.execute("INSERT INTO products (vendor_id, name, price, barcode, inventory, category) VALUES (?,?,?,?,?,?)",
-                                  (vid, name, price, bc, qty, category))
-                        pid = c.lastrowid
-                        conn.commit()
-                        conn.close()
-                        if qty: log_inventory_change(pid, qty, "Initial delivery")
-                        st.success(f"Added — Barcode: **{bc}**")
-                        st.rerun()
-                    except:
-                        st.error("Barcode already used.")
+        st.markdown("---")
+        st.subheader("Your Products")
         
-        # Product list
         prods = pd.read_sql("SELECT id, name, price, inventory, barcode, category FROM products WHERE vendor_id=?",
                             get_conn(), params=(vid,))
+        
         if prods.empty:
-            st.info("No products yet. Use the form above to add one.")
+            st.info("No products yet. Use the form above to add your first product.")
         else:
-            st.subheader("Product List (click a product to edit)")
             for _, row in prods.iterrows():
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                with col1:
-                    if st.button(f"**{row['name']}**", key=f"edit_{row['id']}", use_container_width=True):
-                        st.session_state.editing_product = int(row['id'])
-                        st.rerun()
-                with col2:
-                    st.write(f"${row['price']:.2f}")
-                with col3:
-                    st.write(f"Qty: {int(row['inventory'])}")
-                with col4:
-                    st.write(row['barcode'])
-            
-            # Edit panel
-            if st.session_state.editing_product:
-                st.markdown("---")
-                edit_row = prods[prods.id == st.session_state.editing_product]
-                if not edit_row.empty:
-                    er = edit_row.iloc[0]
-                    st.subheader(f"Edit: {er['name']}")
-                    with st.form("edit_prod"):
-                        new_name = st.text_input("Product Name", value=er['name'])
-                        new_price = st.number_input("Price", value=float(er['price']), min_value=0.01, step=0.25)
-                        new_category = st.text_input("Category", value=er['category'] or "")
-                        new_barcode = st.text_input("Barcode", value=er['barcode'])
-                        adj = st.number_input("Inventory Adjust (+/-)", value=0, step=1)
+                with st.expander(f"{row['name']}  —  ${row['price']:.2f}  —  Qty: {int(row['inventory'])}"):
+                    with st.form(key=f"edit_{row['id']}"):
+                        new_name = st.text_input("Name", value=row['name'])
+                        new_price = st.number_input("Price", value=float(row['price']), min_value=0.01, step=0.25)
+                        new_category = st.text_input("Category", value=row['category'] or "")
+                        adj = st.number_input("Adjust Inventory (+/-)", value=0, step=1)
                         reason = st.selectbox("Reason", ["Delivery/Restock", "Correction", "Damaged/Waste", "Other"])
                         notes = st.text_input("Notes")
                         
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            save = st.form_submit_button("💾 Save", type="primary")
-                        with c2:
-                            delete = st.form_submit_button("🗑️ Delete")
-                        with c3:
-                            cancel = st.form_submit_button("Cancel")
+                        col_save, col_del = st.columns(2)
+                        with col_save:
+                            save_btn = st.form_submit_button("Save Changes")
+                        with col_del:
+                            del_btn = st.form_submit_button("Delete Product")
                         
-                        if save:
+                        if save_btn:
                             conn = get_conn()
-                            conn.execute("""UPDATE products SET name=?, price=?, category=?, barcode=?, inventory=inventory+? WHERE id=?""",
-                                         (new_name, new_price, new_category, new_barcode, adj, int(er['id'])))
+                            conn.execute("UPDATE products SET name=?, price=?, category=?, inventory=inventory+? WHERE id=?",
+                                         (new_name, new_price, new_category, adj, int(row['id'])))
                             conn.commit()
                             conn.close()
-                            if adj: log_inventory_change(int(er['id']), adj, reason, notes)
-                            st.success("Saved")
-                            st.session_state.editing_product = None
+                            if adj:
+                                log_inventory_change(int(row['id']), adj, reason, notes)
+                            st.success("Updated")
                             st.rerun()
-                        if delete:
+                        if del_btn:
                             conn = get_conn()
-                            conn.execute("DELETE FROM products WHERE id=?", (int(er['id']),))
+                            conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
                             conn.commit()
                             conn.close()
                             st.success("Deleted")
-                            st.session_state.editing_product = None
-                            st.rerun()
-                        if cancel:
-                            st.session_state.editing_product = None
                             st.rerun()
 
     elif page == "My Sales Report":
