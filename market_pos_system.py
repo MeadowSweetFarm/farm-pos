@@ -19,8 +19,9 @@ from openpyxl.styles import Font, Alignment, Border, Side
 import stripe
 import os
 
-# Database setup
-DB_PATH = "market_pos.db"
+# Database setup — use persistent disk if available
+import os
+DB_PATH = "/data/market_pos.db" if os.path.exists("/data") else "market_pos.db"
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -165,6 +166,10 @@ st.set_page_config(page_title="Farm Fresh Montana", layout="wide", initial_sideb
 st.markdown("""
 <style>
     .stApp {
+        background-color: #F9F6F1;
+    }
+    .main .block-container {
+        color: #1B4D3E;
         background-color: #F9F6F1;
     }
     h1, h2, h3, h4 {
@@ -923,16 +928,18 @@ elif st.session_state.role == "vendor":
             st.info("No products yet.")
 
     elif page == "Add / Edit Products":
-        st.header(f"{vname} — Add / Edit Products")
-        st.write("Use this page to add new products or update existing ones.")
+        st.markdown("## Add / Edit Products")
+        st.success("This page is loading. If you can see this message, the page is working.")
         
-        # Add form - simple, no nested issues
+        st.write(f"Vendor: **{vname}** (ID: {vid})")
+        
         st.subheader("Add New Product")
-        name = st.text_input("Product Name")
-        price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25)
-        qty = st.number_input("Initial Quantity", min_value=0, value=0)
-        category = st.text_input("Category")
-        if st.button("Add Product", type="primary"):
+        name = st.text_input("Product Name", key="new_prod_name")
+        price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25, key="new_prod_price")
+        qty = st.number_input("Initial Quantity", min_value=0, value=0, key="new_prod_qty")
+        category = st.text_input("Category", key="new_prod_cat")
+        
+        if st.button("Add Product", type="primary", key="add_prod_btn"):
             if name:
                 bc = generate_barcode()
                 try:
@@ -948,41 +955,30 @@ elif st.session_state.role == "vendor":
                     st.success(f"Added {name} (Barcode: {bc})")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error adding product: {e}")
+                    st.error(f"Error: {e}")
             else:
-                st.warning("Please enter a product name.")
+                st.warning("Enter a product name.")
         
         st.markdown("---")
-        st.subheader("Edit Existing Products")
+        st.subheader("Existing Products")
         
-        prods = pd.read_sql("SELECT id, name, price, inventory, barcode FROM products WHERE vendor_id=?",
-                            get_conn(), params=(vid,))
-        
-        if prods.empty:
-            st.info("No products yet.")
-        else:
-            for idx, row in prods.iterrows():
-                st.markdown(f"**{row['name']}** — ${row['price']:.2f} — Qty: {int(row['inventory'])} — {row['barcode']}")
-                new_price = st.number_input("New Price", value=float(row['price']), min_value=0.01, key=f"price_{row['id']}")
-                adj = st.number_input("Inventory Adjust (+/-)", value=0, step=1, key=f"adj_{row['id']}")
-                if st.button("Save", key=f"save_{row['id']}"):
-                    conn = get_conn()
-                    conn.execute("UPDATE products SET price=?, inventory=inventory+? WHERE id=?",
-                                 (new_price, adj, int(row['id'])))
-                    conn.commit()
-                    conn.close()
-                    if adj:
-                        log_inventory_change(int(row['id']), adj, "Adjustment", "")
-                    st.success("Saved")
-                    st.rerun()
-                if st.button("Delete", key=f"del_{row['id']}"):
-                    conn = get_conn()
-                    conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
-                    conn.commit()
-                    conn.close()
-                    st.success("Deleted")
-                    st.rerun()
-                st.markdown("---")
+        try:
+            prods = pd.read_sql("SELECT id, name, price, inventory, barcode FROM products WHERE vendor_id=?",
+                                get_conn(), params=(vid,))
+            if prods.empty:
+                st.info("No products yet.")
+            else:
+                st.dataframe(prods, use_container_width=True)
+                for _, row in prods.iterrows():
+                    st.write(f"**{row['name']}** — ${row['price']:.2f} — Qty: {int(row['inventory'])}")
+                    if st.button(f"Delete {row['name']}", key=f"del_{row['id']}"):
+                        conn = get_conn()
+                        conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
+        except Exception as e:
+            st.error(f"Error loading products: {e}")
 
     elif page == "My Sales Report":
         st.header(f"{vname} — Sales")
