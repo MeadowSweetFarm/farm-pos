@@ -923,19 +923,18 @@ elif st.session_state.role == "vendor":
             st.info("No products yet.")
 
     elif page == "Add / Edit Products":
-        st.header(f"{vname} — Products")
+        st.header(f"{vname} — Add / Edit Products")
+        st.write("Use this page to add new products or update existing ones.")
         
-        # Always show add form
+        # Add form - simple, no nested issues
         st.subheader("Add New Product")
-        with st.form("add_product_form", clear_on_submit=True):
-            name = st.text_input("Product Name*")
-            price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25)
-            qty = st.number_input("Initial Quantity", min_value=0, value=10)
-            category = st.text_input("Category (optional)")
-            custom_bc = st.text_input("Custom Barcode (leave blank for auto)")
-            submitted = st.form_submit_button("Add Product")
-            if submitted and name:
-                bc = custom_bc.strip() or generate_barcode()
+        name = st.text_input("Product Name")
+        price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25)
+        qty = st.number_input("Initial Quantity", min_value=0, value=0)
+        category = st.text_input("Category")
+        if st.button("Add Product", type="primary"):
+            if name:
+                bc = generate_barcode()
                 try:
                     conn = get_conn()
                     c = conn.cursor()
@@ -946,53 +945,44 @@ elif st.session_state.role == "vendor":
                     conn.close()
                     if qty:
                         log_inventory_change(pid, qty, "Initial delivery")
-                    st.success(f"Added **{name}** — Barcode: {bc}")
+                    st.success(f"Added {name} (Barcode: {bc})")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Could not add product: {e}")
+                    st.error(f"Error adding product: {e}")
+            else:
+                st.warning("Please enter a product name.")
         
         st.markdown("---")
-        st.subheader("Your Products")
+        st.subheader("Edit Existing Products")
         
-        prods = pd.read_sql("SELECT id, name, price, inventory, barcode, category FROM products WHERE vendor_id=?",
+        prods = pd.read_sql("SELECT id, name, price, inventory, barcode FROM products WHERE vendor_id=?",
                             get_conn(), params=(vid,))
         
         if prods.empty:
-            st.info("No products yet. Use the form above to add your first product.")
+            st.info("No products yet.")
         else:
-            for _, row in prods.iterrows():
-                with st.expander(f"{row['name']}  —  ${row['price']:.2f}  —  Qty: {int(row['inventory'])}"):
-                    with st.form(key=f"edit_{row['id']}"):
-                        new_name = st.text_input("Name", value=row['name'])
-                        new_price = st.number_input("Price", value=float(row['price']), min_value=0.01, step=0.25)
-                        new_category = st.text_input("Category", value=row['category'] or "")
-                        adj = st.number_input("Adjust Inventory (+/-)", value=0, step=1)
-                        reason = st.selectbox("Reason", ["Delivery/Restock", "Correction", "Damaged/Waste", "Other"])
-                        notes = st.text_input("Notes")
-                        
-                        col_save, col_del = st.columns(2)
-                        with col_save:
-                            save_btn = st.form_submit_button("Save Changes")
-                        with col_del:
-                            del_btn = st.form_submit_button("Delete Product")
-                        
-                        if save_btn:
-                            conn = get_conn()
-                            conn.execute("UPDATE products SET name=?, price=?, category=?, inventory=inventory+? WHERE id=?",
-                                         (new_name, new_price, new_category, adj, int(row['id'])))
-                            conn.commit()
-                            conn.close()
-                            if adj:
-                                log_inventory_change(int(row['id']), adj, reason, notes)
-                            st.success("Updated")
-                            st.rerun()
-                        if del_btn:
-                            conn = get_conn()
-                            conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
-                            conn.commit()
-                            conn.close()
-                            st.success("Deleted")
-                            st.rerun()
+            for idx, row in prods.iterrows():
+                st.markdown(f"**{row['name']}** — ${row['price']:.2f} — Qty: {int(row['inventory'])} — {row['barcode']}")
+                new_price = st.number_input("New Price", value=float(row['price']), min_value=0.01, key=f"price_{row['id']}")
+                adj = st.number_input("Inventory Adjust (+/-)", value=0, step=1, key=f"adj_{row['id']}")
+                if st.button("Save", key=f"save_{row['id']}"):
+                    conn = get_conn()
+                    conn.execute("UPDATE products SET price=?, inventory=inventory+? WHERE id=?",
+                                 (new_price, adj, int(row['id'])))
+                    conn.commit()
+                    conn.close()
+                    if adj:
+                        log_inventory_change(int(row['id']), adj, "Adjustment", "")
+                    st.success("Saved")
+                    st.rerun()
+                if st.button("Delete", key=f"del_{row['id']}"):
+                    conn = get_conn()
+                    conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
+                    conn.commit()
+                    conn.close()
+                    st.success("Deleted")
+                    st.rerun()
+                st.markdown("---")
 
     elif page == "My Sales Report":
         st.header(f"{vname} — Sales")
