@@ -159,14 +159,15 @@ init_db()
 
 st.set_page_config(page_title="Farm Fresh Montana", layout="wide", initial_sidebar_state="expanded")
 
-# Custom branding CSS
+# Custom branding CSS — applied across the entire app
 st.markdown("""
 <style>
     .stApp {
         background-color: #F8F5F0;
     }
-    h1, h2, h3 {
+    h1, h2, h3, h4 {
         color: #1B4D3E !important;
+        font-weight: 600;
     }
     .stButton > button {
         background-color: #1B4D3E;
@@ -174,10 +175,15 @@ st.markdown("""
         border-radius: 8px;
         border: none;
         font-weight: 600;
+        padding: 0.5rem 1rem;
     }
     .stButton > button:hover {
         background-color: #2E6B54;
         color: white;
+    }
+    .stButton > button[kind="secondary"] {
+        background-color: #C4A35A;
+        color: #1B4D3E;
     }
     [data-testid="stSidebar"] {
         background-color: #1B4D3E;
@@ -185,25 +191,46 @@ st.markdown("""
     [data-testid="stSidebar"] * {
         color: #F8F5F0 !important;
     }
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #C4A35A;
+        color: #1B4D3E;
+    }
     .stMetric {
         background-color: white;
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #E8E0D5;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .stDataFrame, .stTable {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    div[data-testid="stExpander"] {
+        background-color: white;
+        border: 1px solid #E8E0D5;
+        border-radius: 8px;
+    }
+    .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div {
+        border-radius: 6px;
+        border: 1px solid #D4C9B8;
+    }
+    hr {
+        border-color: #E8E0D5;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Display logo on main screen
+# Consistent header across all pages
 try:
-    col_logo, col_title = st.columns([1, 2])
+    col_logo, col_title = st.columns([1, 3])
     with col_logo:
-        st.image("farm_fresh_montana_logo.jpg", width=280)
+        st.image("farm_fresh_montana_logo.jpg", width=220)
     with col_title:
-        st.markdown("<h1 style='color:#1B4D3E; margin-bottom:0;'>Farm Fresh Montana</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#5C4A3A; font-size:1.1rem;'>Local Farms. Real Food. Strong Communities.</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#1B4D3E; margin:0; padding-top:10px;'>Farm Fresh Montana</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#5C4A3A; margin:0;'>Local Farms. Real Food. Strong Communities.</p>", unsafe_allow_html=True)
         if st.session_state.get("location_name"):
-            st.markdown(f"<h3 style='color:#C4A35A; margin-top:10px;'>{st.session_state.location_name}</h3>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='color:#C4A35A; margin-top:8px;'>{st.session_state.location_name}</h4>", unsafe_allow_html=True)
 except:
     st.title("Farm Fresh Montana")
 
@@ -226,25 +253,91 @@ def logout():
     st.rerun()
 
 if st.session_state.role is None:
-    st.subheader("Access System")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("👑 System Manager", use_container_width=True):
+    # Professional landing page matching the design concept
+    st.markdown("""
+    <style>
+        .hero-title { color: #1B4D3E; font-size: 2.6rem; font-weight: 700; line-height: 1.2; margin-bottom: 12px; }
+        .hero-sub { color: #5C4A3A; font-size: 1.05rem; max-width: 520px; }
+        .feature-icon { font-size: 1.4rem; margin-bottom: 4px; }
+        .section-title { text-align: center; color: #1B4D3E; font-size: 1.8rem; margin: 20px 0 10px 0; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Hero section
+    col_text, col_img = st.columns([1.1, 1])
+    with col_text:
+        st.markdown('<div class="hero-title">Buy Fresh Local<br>Farm & Ranch Products</div>', unsafe_allow_html=True)
+        st.markdown('<p class="hero-sub">Welcome to Farm Fresh Montana. We connect you with small farms and ranches across Montana to bring you fresh, local, and sustainable products. Support our local producers and strengthen our communities.</p>', unsafe_allow_html=True)
+        st.markdown("""
+        <div style="display:flex; gap:20px; margin-top:15px; flex-wrap:wrap;">
+            <div style="text-align:center;"><div class="feature-icon">🌱</div><div style="font-size:0.85rem; color:#5C4A3A;">Support Local</div></div>
+            <div style="text-align:center;"><div class="feature-icon">🌿</div><div style="font-size:0.85rem; color:#5C4A3A;">Sustainable</div></div>
+            <div style="text-align:center;"><div class="feature-icon">❤️</div><div style="font-size:0.85rem; color:#5C4A3A;">Montana Grown</div></div>
+            <div style="text-align:center;"><div class="feature-icon">🏠</div><div style="font-size:0.85rem; color:#5C4A3A;">Farm & Ranch Raised</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_img:
+        try:
+            st.image("farm_fresh_montana_logo.jpg", use_container_width=True)
+        except:
+            pass
+    
+    st.markdown("---")
+    st.markdown('<div class="section-title">Find a Market Location</div>', unsafe_allow_html=True)
+    
+    col_z, col_s = st.columns([4, 1])
+    with col_z:
+        st.text_input("Enter ZIP Code", placeholder="Enter ZIP Code", label_visibility="collapsed")
+    with col_s:
+        st.button("Search", use_container_width=True)
+    
+    st.markdown("### Nearby Market Locations")
+    loc_col1, loc_col2 = st.columns(2)
+    with loc_col1:
+        st.markdown("""
+        **📍 Plowgirl Farm**  
+        Bigfork, MT · *12 miles away*
+        
+        **📍 Fresh Earth Farm**  
+        Somers, MT · *18 miles away*
+        """)
+    with loc_col2:
+        st.markdown("""
+        **📍 Whitefish Farm Stand**  
+        Whitefish, MT · *24 miles away*
+        
+        [View More Locations →](#)
+        """)
+    
+    st.markdown("### Or Browse by Area")
+    b1, b2, b3, b4 = st.columns(4)
+    with b1: st.button("Plowgirl Farm", use_container_width=True)
+    with b2: st.button("Bigfork Area", use_container_width=True)
+    with b3: st.button("Somers Area", use_container_width=True)
+    with b4: st.button("Whitefish Area", use_container_width=True)
+    
+    st.markdown("---")
+    st.markdown('<div class="section-title">Quick Access</div>', unsafe_allow_html=True)
+    
+    q1, q2, q3, q4 = st.columns(4)
+    with q1:
+        if st.button("System Manager\nStaff Access", use_container_width=True):
             st.session_state.role = "system_manager"
             st.rerun()
-    with col2:
-        if st.button("🏢 Location Admin", use_container_width=True):
+    with q2:
+        if st.button("Location Admin\nManage Your Market", use_container_width=True):
             st.session_state.role = "location_select"
             st.rerun()
-    with col3:
-        if st.button("👤 Vendor Login", use_container_width=True):
+    with q3:
+        if st.button("Vendor Login\nManage Your Products", use_container_width=True):
             st.session_state.role = "vendor_select"
             st.rerun()
-    with col4:
-        if st.button("🛒 Customer Checkout", use_container_width=True):
+    with q4:
+        if st.button("Customer Checkout\nView Cart & Checkout", use_container_width=True):
             st.session_state.role = "customer_select"
             st.rerun()
-    st.info("Prototype system. Use proper auth in production.")
+    
+    st.markdown("<br><p style='text-align:center; color:#8A7A68; font-size:0.9rem;'>Supporting Montana Farms & Ranches · Local. Fresh. Trusted.</p>", unsafe_allow_html=True)
     st.stop()
 
 if st.session_state.role == "location_select":
