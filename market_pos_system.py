@@ -186,8 +186,6 @@ except:
 
 st.markdown("---")
 
-st.error("APP CONTINUED PAST HEADER — if you see this, the script is running")
-
 # Check for location detail view via query param
 query_params = st.query_params
 if "location_id" in query_params and st.session_state.role is None:
@@ -382,7 +380,6 @@ if st.sidebar.button("Logout", type="primary"):
 if st.session_state.role == "vendor":
     if st.button("Log Out", key="vendor_logout"):
         logout()
-    st.warning("VENDOR CONTENT SHOULD APPEAR BELOW THIS LINE")
 
 if st.session_state.role == "system_manager":
     pages = ["All Locations", "Add Location", "All Vendors", "Dashboard", "Settings"]
@@ -875,7 +872,6 @@ elif False:  # was: st.session_state.role in ("vendor", "customer")
 elif st.session_state.role == "vendor":
     vid = st.session_state.vendor_id
     vname = st.session_state.vendor_name
-    st.success(f"Vendor section reached. Page = {page}")
     
     if page == "My Inventory":
         st.header(f"{vname} — Inventory")
@@ -895,17 +891,69 @@ elif st.session_state.role == "vendor":
             st.info("No products yet.")
 
     elif page == "Add / Edit Products":
-        st.title("ADD / EDIT PRODUCTS")
-        st.write("PAGE IS WORKING")
-        st.write(f"Vendor name: {vname}")
-        st.write(f"Vendor ID: {vid}")
+        st.header(f"{vname} — Add / Edit Products")
         
+        st.subheader("Add New Product")
         name = st.text_input("Product Name")
-        if st.button("Add"):
-            st.write(f"Would add: {name}")
+        price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25)
+        qty = st.number_input("Initial Quantity", min_value=0, value=0)
+        category = st.text_input("Category")
         
-        st.write("---")
-        st.write("Existing products will appear here")
+        if st.button("Add Product", type="primary"):
+            if name:
+                bc = generate_barcode()
+                try:
+                    conn = get_conn()
+                    c = conn.cursor()
+                    c.execute("INSERT INTO products (vendor_id, name, price, barcode, inventory, category) VALUES (?,?,?,?,?,?)",
+                              (vid, name, price, bc, qty, category or None))
+                    pid = c.lastrowid
+                    conn.commit()
+                    conn.close()
+                    if qty:
+                        log_inventory_change(pid, qty, "Initial delivery")
+                    st.success(f"Added {name} — Barcode: {bc}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error adding product: {e}")
+            else:
+                st.warning("Please enter a product name.")
+        
+        st.markdown("---")
+        st.subheader("Existing Products")
+        
+        prods = pd.read_sql("SELECT id, name, price, inventory, barcode, category FROM products WHERE vendor_id=?",
+                            get_conn(), params=(vid,))
+        
+        if prods.empty:
+            st.info("No products yet.")
+        else:
+            st.dataframe(prods[["name", "price", "inventory", "category", "barcode"]], use_container_width=True)
+            for _, row in prods.iterrows():
+                with st.expander(f"{row['name']} — ${row['price']:.2f}"):
+                    new_price = st.number_input("Price", value=float(row['price']), min_value=0.01, key=f"p_{row['id']}")
+                    new_cat = st.text_input("Category", value=row['category'] or "", key=f"c_{row['id']}")
+                    adj = st.number_input("Adjust Inventory (+/-)", value=0, step=1, key=f"a_{row['id']}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Save", key=f"s_{row['id']}"):
+                            conn = get_conn()
+                            conn.execute("UPDATE products SET price=?, category=?, inventory=inventory+? WHERE id=?",
+                                         (new_price, new_cat, adj, int(row['id'])))
+                            conn.commit()
+                            conn.close()
+                            if adj:
+                                log_inventory_change(int(row['id']), adj, "Adjustment", "")
+                            st.success("Saved")
+                            st.rerun()
+                    with col2:
+                        if st.button("Delete", key=f"d_{row['id']}"):
+                            conn = get_conn()
+                            conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
+                            conn.commit()
+                            conn.close()
+                            st.success("Deleted")
+                            st.rerun()
 
     elif page == "My Sales Report":
         st.header(f"{vname} — Sales")
