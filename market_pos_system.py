@@ -162,56 +162,12 @@ init_db()
 
 st.set_page_config(page_title="Farm Fresh Montana", layout="wide", initial_sidebar_state="expanded")
 
-# Custom branding CSS — refined to better match the professional landing design
+# Minimal CSS so content is always visible
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #F9F6F1;
-    }
-    .main .block-container {
-        color: #1B4D3E;
-        background-color: #F9F6F1;
-    }
-    h1, h2, h3, h4 {
-        color: #1B4D3E !important;
-        font-weight: 650;
-    }
-    .stButton > button {
-        background-color: #1B4D3E;
-        color: white;
-        border-radius: 10px;
-        border: none;
-        font-weight: 600;
-        padding: 0.55rem 1.1rem;
-        transition: all 0.2s;
-    }
-    .stButton > button:hover {
-        background-color: #245C4A;
-        transform: translateY(-1px);
-    }
-    [data-testid="stSidebar"] {
-        background-color: #1B4D3E;
-    }
-    [data-testid="stSidebar"] * {
-        color: #F9F6F1 !important;
-    }
-    .stMetric {
-        background-color: white;
-        padding: 16px;
-        border-radius: 12px;
-        border: 1px solid #E8E0D5;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    }
-    div[data-testid="stExpander"] {
-        background-color: white;
-        border: 1px solid #E8E0D5;
-        border-radius: 10px;
-    }
-    .hero-box {
-        background: linear-gradient(135deg, #F9F6F1 0%, #F3EEE6 100%);
-        padding: 20px 0 10px 0;
-        border-radius: 12px;
-    }
+    .stApp { background-color: #FFFFFF; }
+    [data-testid="stSidebar"] { background-color: #1B4D3E; }
+    [data-testid="stSidebar"] * { color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -928,57 +884,17 @@ elif st.session_state.role == "vendor":
             st.info("No products yet.")
 
     elif page == "Add / Edit Products":
-        st.markdown("## Add / Edit Products")
-        st.success("This page is loading. If you can see this message, the page is working.")
+        st.title("ADD / EDIT PRODUCTS")
+        st.write("PAGE IS WORKING")
+        st.write(f"Vendor name: {vname}")
+        st.write(f"Vendor ID: {vid}")
         
-        st.write(f"Vendor: **{vname}** (ID: {vid})")
+        name = st.text_input("Product Name")
+        if st.button("Add"):
+            st.write(f"Would add: {name}")
         
-        st.subheader("Add New Product")
-        name = st.text_input("Product Name", key="new_prod_name")
-        price = st.number_input("Price", min_value=0.01, value=5.0, step=0.25, key="new_prod_price")
-        qty = st.number_input("Initial Quantity", min_value=0, value=0, key="new_prod_qty")
-        category = st.text_input("Category", key="new_prod_cat")
-        
-        if st.button("Add Product", type="primary", key="add_prod_btn"):
-            if name:
-                bc = generate_barcode()
-                try:
-                    conn = get_conn()
-                    c = conn.cursor()
-                    c.execute("INSERT INTO products (vendor_id, name, price, barcode, inventory, category) VALUES (?,?,?,?,?,?)",
-                              (vid, name, price, bc, qty, category or None))
-                    pid = c.lastrowid
-                    conn.commit()
-                    conn.close()
-                    if qty:
-                        log_inventory_change(pid, qty, "Initial delivery")
-                    st.success(f"Added {name} (Barcode: {bc})")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-            else:
-                st.warning("Enter a product name.")
-        
-        st.markdown("---")
-        st.subheader("Existing Products")
-        
-        try:
-            prods = pd.read_sql("SELECT id, name, price, inventory, barcode FROM products WHERE vendor_id=?",
-                                get_conn(), params=(vid,))
-            if prods.empty:
-                st.info("No products yet.")
-            else:
-                st.dataframe(prods, use_container_width=True)
-                for _, row in prods.iterrows():
-                    st.write(f"**{row['name']}** — ${row['price']:.2f} — Qty: {int(row['inventory'])}")
-                    if st.button(f"Delete {row['name']}", key=f"del_{row['id']}"):
-                        conn = get_conn()
-                        conn.execute("DELETE FROM products WHERE id=?", (int(row['id']),))
-                        conn.commit()
-                        conn.close()
-                        st.rerun()
-        except Exception as e:
-            st.error(f"Error loading products: {e}")
+        st.write("---")
+        st.write("Existing products will appear here")
 
     elif page == "My Sales Report":
         st.header(f"{vname} — Sales")
