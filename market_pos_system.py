@@ -632,8 +632,8 @@ elif st.session_state.role == "location_admin":
         st.header(f"{loc_name} — Reports")
         st.info("Location-scoped reports.")
 
-# ==================== VENDOR & CUSTOMER (unchanged structure, scoped where possible) ====================
-elif st.session_state.role in ("vendor", "customer"):
+# ==================== OLD BLOCK (disabled so vendor pages work) ====================
+elif False:  # was: st.session_state.role in ("vendor", "customer")
     if page == "Dashboard":
         st.header("Admin Dashboard")
         conn = get_conn()
