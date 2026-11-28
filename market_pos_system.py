@@ -382,6 +382,7 @@ if st.sidebar.button("Logout", type="primary"):
 if st.session_state.role == "vendor":
     if st.button("Log Out", key="vendor_logout"):
         logout()
+    st.warning("VENDOR CONTENT SHOULD APPEAR BELOW THIS LINE")
 
 if st.session_state.role == "system_manager":
     pages = ["All Locations", "Add Location", "All Vendors", "Dashboard", "Settings"]
@@ -874,6 +875,7 @@ elif st.session_state.role in ("vendor", "customer"):
 elif st.session_state.role == "vendor":
     vid = st.session_state.vendor_id
     vname = st.session_state.vendor_name
+    st.success(f"Vendor section reached. Page = {page}")
     
     if page == "My Inventory":
         st.header(f"{vname} — Inventory")
