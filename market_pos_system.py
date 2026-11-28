@@ -186,6 +186,8 @@ except:
 
 st.markdown("---")
 
+st.error("APP CONTINUED PAST HEADER — if you see this, the script is running")
+
 # Check for location detail view via query param
 query_params = st.query_params
 if "location_id" in query_params and st.session_state.role is None:
@@ -373,7 +375,13 @@ if st.session_state.role == "vendor_select":
 st.sidebar.success(f"Logged in as: **{(st.session_state.role or '').upper().replace('_',' ')}**" + 
                    (f" — {st.session_state.location_name}" if st.session_state.get("location_name") else "") +
                    (f" ({st.session_state.vendor_name})" if st.session_state.role == "vendor" else ""))
-if st.sidebar.button("Logout"): logout()
+if st.sidebar.button("Logout", type="primary"):
+    logout()
+
+# Also show logout in main area for vendors
+if st.session_state.role == "vendor":
+    if st.button("Log Out", key="vendor_logout"):
+        logout()
 
 if st.session_state.role == "system_manager":
     pages = ["All Locations", "Add Location", "All Vendors", "Dashboard", "Settings"]
@@ -385,6 +393,7 @@ else:
     pages = ["Checkout"]
 
 page = st.sidebar.radio("Menu", pages)
+st.session_state.page = page
 
 # ==================== HELPER FUNCTIONS ====================
 def create_barcode_image(code):
