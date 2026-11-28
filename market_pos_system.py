@@ -384,7 +384,7 @@ if st.session_state.role == "vendor":
 if st.session_state.role == "system_manager":
     pages = ["All Locations", "Add Location", "All Vendors", "Dashboard", "Settings"]
 elif st.session_state.role == "location_admin":
-    pages = ["Location Dashboard", "Vendors", "All Inventory", "Checkout / POS", "Settlements & Payments", "Reports"]
+    pages = ["Location Dashboard", "Location Information", "Vendors", "All Inventory", "Checkout / POS", "Settlements & Payments", "Reports"]
 elif st.session_state.role == "vendor":
     pages = ["My Inventory", "Add / Edit Products", "My Sales Report"]
 else:
@@ -547,6 +547,43 @@ elif st.session_state.role == "location_admin":
         n_ven = pd.read_sql("SELECT COUNT(*) FROM location_vendors WHERE location_id=?", conn, params=(loc_id,)).iloc[0,0]
         conn.close()
         st.metric("Vendors at this location", n_ven)
+
+    elif page == "Location Information":
+        st.header(f"{loc_name} — Location Information")
+        loc = pd.read_sql("SELECT * FROM locations WHERE id=?", get_conn(), params=(loc_id,))
+        if not loc.empty:
+            l = loc.iloc[0]
+            with st.form("edit_location"):
+                name = st.text_input("Location Name", value=l["name"])
+                address = st.text_area("Address", value=l["address"] or "")
+                phone = st.text_input("Phone", value=l["phone"] or "")
+                email = st.text_input("Email", value=l["email"] or "")
+                website = st.text_input("Website", value=l["website"] or "")
+                st.markdown("**Location Administrator**")
+                admin_name = st.text_input("Admin Name", value=l["admin_name"] or "")
+                admin_address = st.text_area("Admin Address", value=l["admin_address"] or "")
+                admin_phone = st.text_input("Admin Phone", value=l["admin_phone"] or "")
+                admin_email = st.text_input("Admin Email", value=l["admin_email"] or "")
+                admin_pin = st.text_input("Admin PIN", value=l["admin_pin"] or "1234")
+                
+                if st.form_submit_button("Save Changes", type="primary"):
+                    try:
+                        conn = get_conn()
+                        conn.execute("""UPDATE locations SET 
+                            name=?, address=?, phone=?, email=?, website=?,
+                            admin_name=?, admin_address=?, admin_phone=?, admin_email=?, admin_pin=?
+                            WHERE id=?""",
+                            (name, address, phone, email, website or None,
+                             admin_name, admin_address, admin_phone, admin_email, admin_pin, loc_id))
+                        conn.commit()
+                        conn.close()
+                        st.session_state.location_name = name
+                        st.success("Location information updated.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error saving: {e}")
+        else:
+            st.error("Location not found.")
 
     elif page == "Vendors":
         st.header(f"{loc_name} — Vendors")
@@ -918,6 +955,57 @@ elif st.session_state.role == "vendor":
                     st.error(f"Error adding product: {e}")
             else:
                 st.warning("Please enter a product name.")
+        
+        st.markdown("---")
+        st.subheader("Import Products from Excel")
+        st.caption("Upload an Excel file with columns: Name, Price, Quantity, Category, Barcode (optional). Missing barcodes will be auto-generated.")
+        
+        uploaded = st.file_uploader("Choose Excel file", type=["xlsx", "xls"], key="product_import")
+        if uploaded and st.button("Import Products"):
+            try:
+                df = pd.read_excel(uploaded)
+                # Normalize column names
+                df.columns = [c.strip().lower() for c in df.columns]
+                
+                required = ["name", "price"]
+                if not all(c in df.columns for c in required):
+                    st.error("Excel must contain at least 'Name' and 'Price' columns.")
+                else:
+                    added = 0
+                    conn = get_conn()
+                    c = conn.cursor()
+                    for _, row in df.iterrows():
+                        name = str(row.get("name", "")).strip()
+                        if not name:
+                            continue
+                        price = float(row.get("price", 0))
+                        qty = int(row.get("quantity", row.get("qty", 0)) or 0)
+                        category = str(row.get("category", "")).strip() or None
+                        barcode = str(row.get("barcode", "")).strip()
+                        if not barcode or barcode.lower() == "nan":
+                            barcode = generate_barcode()
+                        
+                        try:
+                            c.execute("""INSERT INTO products (vendor_id, name, price, barcode, inventory, category)
+                                         VALUES (?,?,?,?,?,?)""",
+                                      (vid, name, price, barcode, qty, category))
+                            pid = c.lastrowid
+                            if qty:
+                                log_inventory_change(pid, qty, "Excel import")
+                            added += 1
+                        except sqlite3.IntegrityError:
+                            # Barcode collision — generate a new one and retry once
+                            barcode = generate_barcode()
+                            c.execute("""INSERT INTO products (vendor_id, name, price, barcode, inventory, category)
+                                         VALUES (?,?,?,?,?,?)""",
+                                      (vid, name, price, barcode, qty, category))
+                            added += 1
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Imported {added} product(s).")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Import failed: {e}")
         
         st.markdown("---")
         st.subheader("Existing Products")
